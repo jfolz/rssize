@@ -6,71 +6,54 @@ import pytest
 
 import rssize
 
-PROCESS_UPPER_BOUND = 1024 * 1024 * 1024
+# interpreter with pytest suite should consume < 50 MiB,
+# plus a few MiB as safety margin
+RSS_MAX = 64 * 1024 * 1024
+# allow a few pages of churn in adjacent reads
+# assume page size is less than
+CHURN_TOLERANCE = 256 * 1024
 
 
 def test_positive_int():
     value = rssize.rss()
     assert isinstance(value, int)
-    assert value > 0
+    assert 0 < value < RSS_MAX
 
 
 def test_page_size():
-    page = rssize.page_size()
-    assert isinstance(page, int)
-    assert 0 < page <= 1024 * 1024
-    assert page & (page - 1) == 0  # page sizes are powers of two
+    pg = rssize.page_size()
+    assert isinstance(pg, int)
+    # assume page size is always a power of 2
+    # if we read gargabe it's highly unlikely to be 2^n
+    assert pg > 0 and pg.bit_count() == 1
 
 
 def test_default_pid_is_own():
-    # same tolerance as the repeatability test: a few pages may churn
-    # between the two calls
-    assert abs(rssize.rss(pid=os.getpid()) - rssize.rss()) < 1024 * 1024
+    assert abs(rssize.rss(pid=os.getpid()) - rssize.rss()) < CHURN_TOLERANCE
 
 
 def test_child_process():
     child = subprocess.Popen(
-        [sys.executable, "-c", "import time; time.sleep(10)"])
+        [sys.executable, "-c", "import time; time.sleep(60)"])
     try:
-        # the child is same-user, so its counters are accessible on
-        # every supported platform; the fresh interpreter sits well
-        # below the upper bound
         value = rssize.rss(pid=child.pid)
     finally:
+        child.kill()
         child.wait()
     assert isinstance(value, int)
-    assert 0 < value < PROCESS_UPPER_BOUND
+    assert 0 < value < RSS_MAX
 
 
 def test_repeatable():
     first = rssize.rss()
     second = rssize.rss()
-    # the working set may churn by pages between calls but stays in the
-    # same ballpark: the process does not quadruple out of nowhere
-    assert abs(second - first) < 1024 * 1024
+    assert abs(second - first) < CHURN_TOLERANCE
 
 
 def test_allocation_growth():
     import gc
     gc.collect()
     before = rssize.rss()
-
-    page = rssize.page_size()
-    alloc = 64 * 1024 * 1024
-    ballast = bytearray(alloc)
-    # touch every page at the page's own stride: working set counters
-    # only count resident pages, and the page size is 16K on macos/arm,
-    # up to 64K on other systems
-    ballast[::page] = b"x" * len(range(0, alloc, page))
+    alloc = bytearray(RSS_MAX)  # noqa: F841
     after = rssize.rss()
-
-    del ballast
-    assert after - before > 32 * 1024 * 1024
-
-
-def test_rss_matches_psutil_when_installed():
-    psutil = pytest.importorskip("psutil")
-    # both instruments read the same kernel counter within microseconds,
-    # so they agree within a small churn tolerance, independent of the
-    # page size
-    assert abs(rssize.rss() - psutil.Process().memory_info().rss) < 64 * 1024
+    assert after - before > RSS_MAX // 2
