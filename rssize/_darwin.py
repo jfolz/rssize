@@ -5,33 +5,23 @@ from ._common import page_size
 __all__ = ["page_size", "rss"]
 
 
-class _PROC_TASKINFO(ctypes.Structure):
+class _PTI_RESIDENT(ctypes.Structure):
     """
-    proc_taskinfo (libproc.h).
+    prefix of proc_taskinfo (libproc.h) through pti_resident_size.
+
+    the kernel's struct is 96 bytes (18 fields, int32 tail) on every
+    xnu from 10.13 to current main; only the 16-byte prefix is needed
+    here, and a wrong full-struct transcription (uint64 tail counters,
+    120 bytes) previously rejected successful kernel calls
     """
     _fields_ = [
         ("pti_virtual_size", ctypes.c_uint64),
         ("pti_resident_size", ctypes.c_uint64),
-        ("pti_total_user", ctypes.c_uint64),
-        ("pti_total_system", ctypes.c_uint64),
-        ("pti_threads_user", ctypes.c_uint64),
-        ("pti_threads_system", ctypes.c_uint64),
-        ("pti_policy", ctypes.c_int32),
-        ("pti_faults", ctypes.c_int32),
-        ("pti_pageins", ctypes.c_int32),
-        ("pti_cow_faults", ctypes.c_int32),
-        ("pti_messages_sent", ctypes.c_uint64),
-        ("pti_messages_received", ctypes.c_uint64),
-        ("pti_syscalls_mach", ctypes.c_uint64),
-        ("pti_syscalls_unix", ctypes.c_uint64),
-        ("pti_csw", ctypes.c_uint64),
-        ("pti_threadnum", ctypes.c_int32),
-        ("pti_numrunning", ctypes.c_int32),
-        ("pti_priority", ctypes.c_int32),
     ]
 
 
-_PROC_PIDTASKINFO = 4  # flavor id from libproc.h
+_PROC_PIDTASKINFO = 4     # flavor id from libproc.h
+_PROC_TASKINFO_SIZE = 96  # sizeof(proc_taskinfo), every xnu from 10.13 on
 
 _libc = ctypes.CDLL(None, use_errno=True)  # libSystem, contains libproc
 _libc.proc_pidinfo.argtypes = (
@@ -45,12 +35,14 @@ _libc.proc_pidinfo.restype = ctypes.c_int
 
 
 def rss(pid):
-    info = _PROC_TASKINFO()
-    if _libc.proc_pidinfo(
-            pid, _PROC_PIDTASKINFO, 0, ctypes.byref(info),
-            ctypes.sizeof(info)) != ctypes.sizeof(info):
+    buffer = ctypes.create_string_buffer(_PROC_TASKINFO_SIZE)
+    ret = _libc.proc_pidinfo(
+        pid, _PROC_PIDTASKINFO, 0, buffer, _PROC_TASKINFO_SIZE)
+    if ret < ctypes.sizeof(_PTI_RESIDENT):
         errno = ctypes.get_errno()
         detail = f"errno {errno}" if errno else "invalid pid or access denied"
         raise OSError(
             f"proc_pidinfo(PROC_PIDTASKINFO) for pid {pid} failed: {detail}")
+    info = _PTI_RESIDENT()
+    ctypes.memmove(ctypes.byref(info), buffer, ctypes.sizeof(info))
     return info.pti_resident_size
