@@ -43,7 +43,11 @@ class _SYSTEM_INFO(ctypes.Structure):
         ("w_processor_revision", ctypes.c_uint16),
     ]
 
-_kernel32 = ctypes.windll.kernel32
+# use_last_error makes ctypes keep a private copy of the LastError of
+# each call, safe from clobbering by interpreter work between the
+# failing call and the exception raise; ctypes.WinError() reads only
+# the live thread value, which is not safe here
+_kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 _kernel32.GetCurrentProcess.restype = ctypes.c_void_p
 _kernel32.OpenProcess.argtypes = (ctypes.c_uint32, ctypes.c_int,
                                   ctypes.c_uint32)
@@ -52,7 +56,7 @@ _kernel32.CloseHandle.argtypes = (ctypes.c_void_p,)
 _kernel32.CloseHandle.restype = ctypes.c_int
 _kernel32.GetSystemInfo.argtypes = (ctypes.POINTER(_SYSTEM_INFO),)
 _kernel32.GetSystemInfo.restype = None
-_psapi = ctypes.windll.psapi
+_psapi = ctypes.WinDLL("psapi", use_last_error=True)
 _psapi.GetProcessMemoryInfo.argtypes = (
     ctypes.c_void_p,
     ctypes.POINTER(_PROCESS_MEMORY_COUNTERS),
@@ -72,18 +76,17 @@ def rss(pid):
         process = _kernel32.GetCurrentProcess()
         close = False
     else:
-        # same access right that psutil requests for memory_info
         process = _kernel32.OpenProcess(
             _PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
         if not process:
-            raise ctypes.WinError()
+            raise ctypes.WinError(ctypes.get_last_error())
         close = True
     try:
         counters = _PROCESS_MEMORY_COUNTERS()
         counters.cb = ctypes.sizeof(counters)
         if not _psapi.GetProcessMemoryInfo(
                 process, ctypes.byref(counters), counters.cb):
-            raise ctypes.WinError()
+            raise ctypes.WinError(ctypes.get_last_error())
         return counters.working_set
     finally:
         if close:
