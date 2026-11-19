@@ -1,6 +1,7 @@
 import ctypes
+import errno
 
-from ._common import page_size, sysctl
+from ._common import page_size, process_error, sysctl
 
 __all__ = ["page_size", "rss"]
 
@@ -65,9 +66,11 @@ def rss(pid):
     size = ctypes.c_size_t(ctypes.sizeof(buffer))
     mib = [_CTL_KERN, _KERN_PROC, _KERN_PROC_PID, pid]
     if not sysctl(mib, ctypes.byref(buffer), ctypes.byref(size)):
-        raise OSError(
-            ctypes.get_errno(),
-            f"sysctl(CTL_KERN.KERN_PROC.PID) for pid {pid}")
+        raise process_error(pid, "sysctl(kinfo_proc)", ctypes.get_errno())
+    # sysctl reports success with a zero length if the pid doesn't
+    # exist; parsing the zeroed buffer would return an rss of 0
+    if size.value == 0:
+        raise process_error(pid, "sysctl(kinfo_proc)", errno.ESRCH)
     info = _KINFO_PROC_PREFIX()
     ctypes.memmove(ctypes.byref(info), buffer, ctypes.sizeof(info))
     return info.ki_rssize * page_size()

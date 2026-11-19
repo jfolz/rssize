@@ -1,6 +1,6 @@
 import ctypes
 
-from ._common import page_size
+from ._common import page_size, process_error
 
 __all__ = ["page_size", "rss"]
 
@@ -28,9 +28,13 @@ class _PSINFO(ctypes.Structure):
 
 def rss(pid):
     info = _PSINFO()
-    with open(f"/proc/{pid}/psinfo", "rb") as f:
-        raw = f.read(ctypes.sizeof(info))
+    try:
+        with open(f"/proc/{pid}/psinfo", "rb") as f:
+            raw = f.read(ctypes.sizeof(info))
+    except OSError as err:
+        raise process_error(pid, f"/proc/{pid}/psinfo lookup",
+                            err.errno) from None
     if len(raw) != ctypes.sizeof(info):
-        raise OSError(f"short read on /proc/{pid}/psinfo")
+        raise process_error(pid, f"short read on /proc/{pid}/psinfo")
     info = _PSINFO.from_buffer_copy(raw)
     return info.pr_rssize * 1024

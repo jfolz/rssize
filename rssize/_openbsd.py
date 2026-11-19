@@ -1,6 +1,7 @@
 import ctypes
+import errno
 
-from ._common import page_size, sysctl
+from ._common import page_size, process_error, sysctl
 
 __all__ = ["page_size", "rss"]
 
@@ -126,16 +127,18 @@ def rss(pid):
     mib = [_CTL_KERN, _KERN_PROC, _KERN_PROC_PID, pid, element_size, 0]
     size = ctypes.c_size_t(0)
     if not sysctl(mib, None, ctypes.byref(size)):
-        raise OSError(
-            ctypes.get_errno(),
-            f"sysctl(CTL_KERN.KERN_PROC.PID) for pid {pid}")
+        raise process_error(pid, "sysctl(kinfo_proc)", ctypes.get_errno())
+    # sysctl reports success with a zero length if the pid doesn't
+    # exist; the buffer max() below would still read a zeroed struct
+    if size.value == 0:
+        raise process_error(pid, "sysctl(kinfo_proc)", errno.ESRCH)
     buffer = ctypes.create_string_buffer(max(size.value, element_size))
     size = ctypes.c_size_t(ctypes.sizeof(buffer))
     mib[5] = ctypes.sizeof(buffer) // element_size
     if not sysctl(mib, ctypes.byref(buffer), ctypes.byref(size)):
-        raise OSError(
-            ctypes.get_errno(),
-            f"sysctl(CTL_KERN.KERN_PROC.PID) for pid {pid}")
+        raise process_error(pid, "sysctl(kinfo_proc)", ctypes.get_errno())
+    if size.value == 0:
+        raise process_error(pid, "sysctl(kinfo_proc)", errno.ESRCH)
     info = _KINFO_PROC()
     ctypes.memmove(ctypes.byref(info), buffer, ctypes.sizeof(info))
     return info.p_vm_rssize * page_size()

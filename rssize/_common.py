@@ -30,3 +30,15 @@ def sysctl(mib, oldp, oldlenp):
         _sysctl = _libc.sysctl
     mib_buffer = (ctypes.c_int * len(mib))(*mib)
     return _sysctl(mib_buffer, len(mib), oldp, oldlenp, None, 0) != -1
+
+
+def process_error(pid, action, errno_=None, winerror=None):
+    """
+    Uniform process-access error across platform modules.
+    """
+    message = f"rss for pid {pid}: {action} failed"
+    if winerror is not None:
+        return OSError(None, message, None, winerror)
+    if errno_:
+        return OSError(errno_, message)
+    return OSError(message)

@@ -1,6 +1,8 @@
 import ctypes
 import os
 
+from ._common import process_error
+
 __all__ = ["page_size", "rss"]
 
 
@@ -79,14 +81,16 @@ def rss(pid):
         process = _kernel32.OpenProcess(
             _PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
         if not process:
-            raise ctypes.WinError(ctypes.get_last_error())
+            raise process_error(pid, "OpenProcess",
+                                winerror=ctypes.get_last_error())
         close = True
     try:
         counters = _PROCESS_MEMORY_COUNTERS()
         counters.cb = ctypes.sizeof(counters)
         if not _psapi.GetProcessMemoryInfo(
                 process, ctypes.byref(counters), counters.cb):
-            raise ctypes.WinError(ctypes.get_last_error())
+            raise process_error(pid, "GetProcessMemoryInfo",
+                                winerror=ctypes.get_last_error())
         return counters.working_set
     finally:
         if close:

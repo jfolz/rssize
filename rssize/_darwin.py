@@ -1,6 +1,6 @@
 import ctypes
 
-from ._common import page_size
+from ._common import page_size, process_error
 
 __all__ = ["page_size", "rss"]
 
@@ -39,10 +39,8 @@ def rss(pid):
     ret = _libc.proc_pidinfo(
         pid, _PROC_PIDTASKINFO, 0, buffer, _PROC_TASKINFO_SIZE)
     if ret < ctypes.sizeof(_PTI_RESIDENT):
-        errno = ctypes.get_errno()
-        detail = f"errno {errno}" if errno else "invalid pid or access denied"
-        raise OSError(
-            f"proc_pidinfo(PROC_PIDTASKINFO) for pid {pid} failed: {detail}")
+        raise process_error(pid, "proc_pidinfo(PROC_PIDTASKINFO)",
+                            ctypes.get_errno() or None)
     info = _PTI_RESIDENT()
     ctypes.memmove(ctypes.byref(info), buffer, ctypes.sizeof(info))
     return info.pti_resident_size
