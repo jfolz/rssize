@@ -13,17 +13,17 @@ RSS_MAX = 64 * 1024 * 1024
 CHURN_TOLERANCE = 256 * 1024
 
 
-def test_positive_int():
+def test_rss_realistic_value():
     value = rssize.rss()
     assert isinstance(value, int)
     assert 0 < value < RSS_MAX
 
 
-def test_default_pid_is_own():
+def test_rss_default_pid():
     assert abs(rssize.rss(pid=os.getpid()) - rssize.rss()) < CHURN_TOLERANCE
 
 
-def test_child_process():
+def test_rss_child_process():
     child = subprocess.Popen(
         [sys.executable, "-c", "import time; time.sleep(60)"])
     try:
@@ -35,13 +35,13 @@ def test_child_process():
     assert 0 < value < RSS_MAX
 
 
-def test_repeatable():
+def test_rss_repeatability():
     first = rssize.rss()
     second = rssize.rss()
     assert abs(second - first) < CHURN_TOLERANCE
 
 
-def test_allocation_growth():
+def test_rss_allocation_growth():
     gc.collect()
     before = rssize.rss()
     alloc = bytearray(RSS_MAX)  # noqa: F841
@@ -49,7 +49,7 @@ def test_allocation_growth():
     assert after - before > RSS_MAX // 2
 
 
-def test_page_size():
+def test_page_size_power_of_2():
     pg = rssize.page_size()
     assert isinstance(pg, int)
     # assume page size is always a power of 2
