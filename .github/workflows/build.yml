@@ -1,0 +1,186 @@
+name: build and test
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    name: Build wheel and sdist on ubuntu-latest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14t'
+      - name: Build wheel and sdist
+        run: pip install build && python -m build
+      - uses: actions/upload-artifact@v7
+        with:
+          name: distribution
+          path: dist/*
+          if-no-files-found: error
+
+  test:
+    name: Test on ${{ matrix.os }} ${{ matrix.arch }}, CPython ${{ matrix.python-version }}
+    needs:
+      - build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04-arm
+            arch: aarch64
+            python-version: '3.14'
+          - os: macos-15-intel
+            arch: x86_64
+            python-version: '3.14'
+          - os: macos-latest
+            arch: aarch64
+            python-version: '3.14'
+          - os: windows-latest
+            arch: x86_64
+            python-version: '3.14'
+          - os: windows-11-arm
+            arch: aarch64
+            python-version: '3.14'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          name: distribution
+          path: dist
+      - name: Install the wheel and pytest
+        run: pip install dist/rssize-*-py3-none-any.whl pytest
+        shell: bash
+      - name: Run tests
+        run: pytest test_rssize.py -vv
+
+  test_freebsd:
+    name: Test on freebsd CPython 3.13 (hosted vm)
+    needs:
+      - build
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          name: distribution
+          path: dist
+      - name: Test in the freebsd guest vm
+        uses: vmactions/freebsd-vm@v1
+        with:
+          usesh: true
+          release: '15'
+          prepare: |
+            pkg install -y python313 py313-pip
+          run: |
+            set -e
+            python3.13 -m pip install --break-system-packages \
+                pytest dist/rssize-*-py3-none-any.whl
+            python3.13 -m pytest test_rssize.py -vv
+
+  test_openbsd:
+    name: Test on openbsd CPython 3 (hosted vm)
+    needs:
+      - build
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          name: distribution
+          path: dist
+      - name: Test in the openbsd guest vm
+        uses: vmactions/openbsd-vm@v1
+        with:
+          usesh: true
+          release: '8'
+          prepare: |
+            pkg_add -I python3 py3-pip
+          run: |
+            set -e
+            python3 -m pip install --break-system-packages \
+                pytest dist/rssize-*-py3-none-any.whl
+            python3 -m pytest test_rssize.py -vv
+
+  test_netbsd:
+    name: Test on netbsd CPython 3.13 (hosted vm)
+    needs:
+      - build
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          name: distribution
+          path: dist
+      - name: Test in the netbsd guest vm
+        uses: vmactions/netbsd-vm@v1
+        with:
+          usesh: true
+          release: '11'
+          prepare: |
+            /usr/sbin/pkg_add -u python313 py313-pip
+          run: |
+            set -e
+            python3.13 -m pip install --break-system-packages \
+                pytest dist/rssize-*-py3-none-any.whl
+            python3.13 -m pytest test_rssize.py -vv
+
+  test_solaris:
+    name: Test on solaris CPython 3.9 (hosted vm)
+    needs:
+      - build
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          name: distribution
+          path: dist
+      - name: Test in the solaris guest vm
+        uses: vmactions/solaris-vm@v1
+        with:
+          usesh: true
+          release: '11.4'
+          run: |
+            set -e
+            # solaris 11.4 ships python 3.9 in the base system (the ips
+            # client runs on it); bootstrap pip through venv/ensurepip
+            python3.9 -m venv .venv
+            ./.venv/bin/python -m pip install \
+                pytest dist/rssize-*-py3-none-any.whl
+            ./.venv/bin/python -m pytest test_rssize.py -vv
+
+  publish:
+    name: Publish to PyPI on tags
+    needs:
+      - build
+      - test
+      - test_freebsd
+      - test_openbsd
+      - test_netbsd
+      - test_solaris
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    environment:
+      name: publish
+      url: https://pypi.org/p/rssize
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: distribution
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@v1.14.3
+      - name: Create GitHub release
+        uses: ncipollo/release-action@v1.21.0
+        with:
+          artifacts: dist/*
+          draft: false
+          prerelease: false

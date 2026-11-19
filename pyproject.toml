@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rssize"
+version = "0.1.0"
+description = "Current resident set size (RSS) of the process, standard library only."
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Joachim Folz", email = "joachim.folz@dfki.de" }]
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: BSD :: FreeBSD",
+    "Operating System :: POSIX :: BSD :: NetBSD",
+    "Operating System :: POSIX :: BSD :: OpenBSD",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: POSIX :: SunOS/Solaris",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: Free Threading",
+    "Topic :: Software Development :: Testing",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

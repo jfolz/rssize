@@ -1,0 +1,147 @@
+import ctypes
+
+from ._common import page_size, sysctl
+
+__all__ = ["page_size", "rss"]
+
+
+_CTL_KERN = 1       # sys/sysctl.h
+_KERN_PROC2 = 47
+_KERN_PROC_PID = 1
+_KI_NGROUPS = 16
+_KI_MAXCOMLEN = 24  # includes NUL, extra for alignment
+_KI_WMESGLEN = 8
+_KI_MAXLOGNAME = 24  # includes NUL, extra for alignment
+_KI_MAXEMULLEN = 16
+
+
+class _SIGSET(ctypes.Structure):
+    """
+    ki_sigset_t: 4 x 32-bit bitmaps, fixed for the kinfo_proc2 ABI.
+    """
+    _fields_ = [("__bits", ctypes.c_uint32 * 4)]
+
+
+class _KINFO_PROC2(ctypes.Structure):
+    """
+    struct kinfo_proc2 (sys/sysctl.h).
+    """
+    _fields_ = [
+        ("p_forw", ctypes.c_uint64),
+        ("p_back", ctypes.c_uint64),
+        ("p_paddr", ctypes.c_uint64),
+        ("p_addr", ctypes.c_uint64),
+        ("p_fd", ctypes.c_uint64),
+        ("p_cwdi", ctypes.c_uint64),
+        ("p_stats", ctypes.c_uint64),
+        ("p_limit", ctypes.c_uint64),
+        ("p_vmspace", ctypes.c_uint64),
+        ("p_sigacts", ctypes.c_uint64),
+        ("p_sess", ctypes.c_uint64),
+        ("p_tsess", ctypes.c_uint64),
+        ("p_ru", ctypes.c_uint64),
+        ("p_eflag", ctypes.c_int32),
+        ("p_exitsig", ctypes.c_int32),
+        ("p_flag", ctypes.c_int32),
+        ("p_pid", ctypes.c_int32),
+        ("p_ppid", ctypes.c_int32),
+        ("p_sid", ctypes.c_int32),
+        ("p__pgid", ctypes.c_int32),
+        ("p_tpgid", ctypes.c_int32),
+        ("p_uid", ctypes.c_uint32),
+        ("p_ruid", ctypes.c_uint32),
+        ("p_gid", ctypes.c_uint32),
+        ("p_rgid", ctypes.c_uint32),
+        ("p_groups", ctypes.c_uint32 * _KI_NGROUPS),
+        ("p_ngroups", ctypes.c_int16),
+        ("p_jobc", ctypes.c_int16),
+        ("p_tdev", ctypes.c_uint32),
+        ("p_estcpu", ctypes.c_uint32),
+        ("p_rtime_sec", ctypes.c_uint32),
+        ("p_rtime_usec", ctypes.c_uint32),
+        ("p_cpticks", ctypes.c_int32),
+        ("p_pctcpu", ctypes.c_uint32),
+        ("p_swtime", ctypes.c_uint32),
+        ("p_slptime", ctypes.c_uint32),
+        ("p_schedflags", ctypes.c_int32),
+        ("p_uticks", ctypes.c_uint64),
+        ("p_sticks", ctypes.c_uint64),
+        ("p_iticks", ctypes.c_uint64),
+        ("p_tracep", ctypes.c_uint64),
+        ("p_traceflag", ctypes.c_int32),
+        ("p_holdcnt", ctypes.c_int32),
+        ("p_siglist", _SIGSET),
+        ("p_sigmask", _SIGSET),
+        ("p_sigignore", _SIGSET),
+        ("p_sigcatch", _SIGSET),
+        ("p_stat", ctypes.c_int8),
+        ("p_priority", ctypes.c_uint8),
+        ("p_usrpri", ctypes.c_uint8),
+        ("p_nice", ctypes.c_uint8),
+        ("p_xstat", ctypes.c_uint16),
+        ("p_acflag", ctypes.c_uint16),
+        ("p_comm", ctypes.c_char * _KI_MAXCOMLEN),
+        ("p_wmesg", ctypes.c_char * _KI_WMESGLEN),
+        ("p_wchan", ctypes.c_uint64),
+        ("p_login", ctypes.c_char * _KI_MAXLOGNAME),
+        ("p_vm_rssize", ctypes.c_int32),  # resident set in pages
+        ("p_vm_tsize", ctypes.c_int32),
+        ("p_vm_dsize", ctypes.c_int32),
+        ("p_vm_ssize", ctypes.c_int32),
+        ("p_uvalid", ctypes.c_int64),
+        ("p_ustart_sec", ctypes.c_uint32),
+        ("p_ustart_usec", ctypes.c_uint32),
+        ("p_uutime_sec", ctypes.c_uint32),
+        ("p_uutime_usec", ctypes.c_uint32),
+        ("p_ustime_sec", ctypes.c_uint32),
+        ("p_ustime_usec", ctypes.c_uint32),
+        ("p_uru_maxrss", ctypes.c_uint64),
+        ("p_uru_ixrss", ctypes.c_uint64),
+        ("p_uru_idrss", ctypes.c_uint64),
+        ("p_uru_isrss", ctypes.c_uint64),
+        ("p_uru_minflt", ctypes.c_uint64),
+        ("p_uru_majflt", ctypes.c_uint64),
+        ("p_uru_nswap", ctypes.c_uint64),
+        ("p_uru_inblock", ctypes.c_uint64),
+        ("p_uru_oublock", ctypes.c_uint64),
+        ("p_uru_msgsnd", ctypes.c_uint64),
+        ("p_uru_msgrcv", ctypes.c_uint64),
+        ("p_uru_nsignals", ctypes.c_uint64),
+        ("p_uru_nvcsw", ctypes.c_uint64),
+        ("p_uru_nivcsw", ctypes.c_uint64),
+        ("p_uctime_sec", ctypes.c_uint32),
+        ("p_uctime_usec", ctypes.c_uint32),
+        ("p_cpuid", ctypes.c_uint64),
+        ("p_realflag", ctypes.c_uint64),
+        ("p_nlwps", ctypes.c_uint64),
+        ("p_nrlwps", ctypes.c_uint64),
+        ("p_realstat", ctypes.c_uint64),
+        ("p_svuid", ctypes.c_uint32),
+        ("p_svgid", ctypes.c_uint32),
+        ("p_ename", ctypes.c_char * _KI_MAXEMULLEN),
+        ("p_vm_vsize", ctypes.c_int64),
+        ("p_vm_msize", ctypes.c_int64),
+    ]
+
+
+def rss(pid):
+    # two-phase call as in libkvm's kvm_getproc2:
+    # first ask for the length, then read one element of sizeof(kinfo_proc2)
+    # bytes that is passed to the kernel as the element size in the MiB
+    element_size = ctypes.sizeof(_KINFO_PROC2)
+    mib = [_CTL_KERN, _KERN_PROC2, _KERN_PROC_PID, pid, element_size, 0]
+    size = ctypes.c_size_t(0)
+    if not sysctl(mib, None, ctypes.byref(size)):
+        raise OSError(
+            ctypes.get_errno(),
+            f"sysctl(CTL_KERN.KERN_PROC2.PID) for pid {pid}")
+    buffer = ctypes.create_string_buffer(max(size.value, element_size))
+    size = ctypes.c_size_t(ctypes.sizeof(buffer))
+    mib[5] = ctypes.sizeof(buffer) // element_size
+    if not sysctl(mib, ctypes.byref(buffer), ctypes.byref(size)):
+        raise OSError(
+            ctypes.get_errno(),
+            f"sysctl(CTL_KERN.KERN_PROC2.PID) for pid {pid}")
+    info = _KINFO_PROC2()
+    ctypes.memmove(ctypes.byref(info), buffer, ctypes.sizeof(info))
+    return info.p_vm_rssize * page_size()
