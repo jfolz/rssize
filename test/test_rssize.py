@@ -79,7 +79,13 @@ def test_rss_concurrent_reads():
         chunks = list(executor.map(batch, range(8)))
     values = [v for chunk in chunks for v in chunk]
     assert len(values) == 32
-    assert all(0 < v < RSS_MAX for v in values)
+    non_positive = [
+        v for v in values if not (isinstance(v, int) and v > 0)]
+    assert not non_positive, f"non-positive reads: {non_positive[:8]}"
+    lo, hi = min(values), max(values)
+    assert hi - lo < CHURN_TOLERANCE, (
+        f"reads disagree: min={lo} max={hi} spread={hi - lo} "
+        f"tolerance={CHURN_TOLERANCE} chunks={chunks}")
 
 
 def test_rss_concurrent_errors():
@@ -101,5 +107,16 @@ def test_rss_concurrent_errors():
     self_results = [o for kind, o in outcomes if kind == "self"]
     dead_errors = [o for kind, o in outcomes if kind == "dead"]
     assert len(self_results) == len(dead_errors) == 16
-    assert all(isinstance(v, int) and 0 < v < RSS_MAX for v in self_results)
-    assert all(isinstance(e, OSError) for e in dead_errors)
+    bad_self = [v for v in self_results if not (isinstance(v, int) and v > 0)]
+    assert not bad_self, f"bad self reads: {bad_self[:8]} all={self_results}"
+    lo, hi = min(self_results), max(self_results)
+    assert hi - lo < CHURN_TOLERANCE, (
+        f"self reads disagree: min={lo} max={hi} spread={hi - lo} "
+        f"tolerance={CHURN_TOLERANCE} all={self_results}")
+    bad_dead = [e for e in dead_errors if not isinstance(e, OSError)]
+    assert not bad_dead, (
+        f"dead pid did not raise OSError: {bad_dead[:4]} all={dead_errors!r}")
+    dead_types = {type(e).__name__ for e in dead_errors}
+    assert len(dead_types) == 1, (
+        f"mixed dead-pid error types: "
+        f"{[(type(e).__name__, getattr(e, 'errno', None)) for e in dead_errors]}")
