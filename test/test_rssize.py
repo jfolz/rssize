@@ -1,8 +1,7 @@
+import gc
 import os
 import subprocess
 import sys
-
-import pytest
 
 import rssize
 
@@ -18,14 +17,6 @@ def test_positive_int():
     value = rssize.rss()
     assert isinstance(value, int)
     assert 0 < value < RSS_MAX
-
-
-def test_page_size():
-    pg = rssize.page_size()
-    assert isinstance(pg, int)
-    # assume page size is always a power of 2
-    # if we read gargabe it's highly unlikely to be 2^n
-    assert pg > 0 and pg.bit_count() == 1
 
 
 def test_default_pid_is_own():
@@ -51,9 +42,16 @@ def test_repeatable():
 
 
 def test_allocation_growth():
-    import gc
     gc.collect()
     before = rssize.rss()
     alloc = bytearray(RSS_MAX)  # noqa: F841
     after = rssize.rss()
     assert after - before > RSS_MAX // 2
+
+
+def test_page_size():
+    pg = rssize.page_size()
+    assert isinstance(pg, int)
+    # assume page size is always a power of 2
+    # if we read gargabe it's highly unlikely to be 2^n
+    assert pg > 0 and pg.bit_count() == 1
