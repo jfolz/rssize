@@ -4,3 +4,5 @@ dist/
 build/
 scratch/
 *.egg-info/
+logs_*.zip
+session.md

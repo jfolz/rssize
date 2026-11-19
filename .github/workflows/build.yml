@@ -166,7 +166,7 @@ jobs:
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     environment:
-      name: publish
+      name: pypi
       url: https://pypi.org/p/rssize
     permissions:
       id-token: write

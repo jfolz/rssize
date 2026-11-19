@@ -11,7 +11,7 @@ import os
 import sys
 
 __all__ = ["page_size", "rss"]
-__version__ = "1.0.0"
+__version__ = "0.1.0"
 
 
 if sys.platform.startswith("linux"):
