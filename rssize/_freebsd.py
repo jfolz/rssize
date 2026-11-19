@@ -1,7 +1,8 @@
 import ctypes
 import errno
 
-from ._common import page_size, process_error, sysctl
+from ._common import page_size, process_error
+from ._sysctl import sysctl
 
 __all__ = ["page_size", "rss"]
 
